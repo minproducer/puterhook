@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8">
+    <title>AI Webhook GPT-4o</title>
+
+    <!-- SDK đầy đủ (Auth + AI) -->
+    <script src="https://js.puter.com/v2/"></script>
+
+    <style>
+        body {
+            font-family: monospace;
+            background: #f7f7f7;
+            margin: 40px;
+        }
+
+        #out {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #ccc;
+            white-space: pre-wrap;
+        }
+
+        #login {
+            padding: 10px 20px;
+            margin-top: 20px;
+            display: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <pre id="out">Đang khởi tạo…</pre>
+    <button id="login">🔐 Đăng nhập với Puter</button>
+
+    <script>
+        (async () => {
+            await puter.ready;
+            const $out = document.getElementById('out');
+            const $login = document.getElementById('login');
+            const show = (obj) => $out.textContent = JSON.stringify(obj, null, 2);
+
+            /* ── Tiện ích đặt MIME JSON ── */
+            const setJsonMime = () => {
+                const m = document.createElement('meta');
+                m.httpEquiv = 'Content-Type';
+                m.content = 'application/json; charset=utf-8';
+                document.head.appendChild(m);
+            };
+
+            /* ── Hàm đăng nhập ── */
+            const signIn = () => puter.auth.signIn({
+                mode: 'popup',          // có thể đổi thành 'redirect'
+                provider: 'google'      // 'github', 'discord'… nếu muốn
+            });
+
+            let user = puter.auth.currentUser;
+
+            if (!user) {
+                $login.style.display = 'inline-block';
+                $out.textContent = 'Bạn cần đăng nhập để dùng dịch vụ AI.';
+                $login.onclick = async () => {
+                    try {
+                        user = await signIn();
+                        $login.style.display = 'none';
+                        runWebhook();
+                    } catch (e) {
+                        show({ error: 'Không đăng nhập được', detail: e.message });
+                    }
+                };
+                return;                               // dừng – chờ đăng nhập
+            }
+
+            runWebhook();                           // đã có phiên
+
+            /* ──────────────────────────────
+               THỰC THI WEBHOOK (không lưu bộ nhớ)
+            ────────────────────────────── */
+            async function runWebhook() {
+                setJsonMime();
+
+                const params = new URLSearchParams(location.search);
+                const question = params.get('q');
+
+                if (!question) {
+                    show({ error: 'Thiếu tham số ?q=' });
+                    return;
+                }
+
+                try {
+                    const answer = await puter.ai.chat(question, { model: 'gpt-4o' });
+                    show({
+                        question,
+                        answer,
+                        user: { id: user.id, username: user.username }
+                    });
+                } catch (err) {
+                    if (err.status === 401 || err.code === 'token_auth_failed') {
+                        await puter.auth.signOut();
+                        show({ error: 'Phiên hết hạn, hãy tải lại và đăng nhập.' });
+                        $login.style.display = 'inline-block';
+                    } else if (err.code === 'rate_limited') {
+                        show({ error: 'Vượt hạn mức, thử lại sau.' });
+                    } else {
+                        show({ error: err.message || 'Lỗi không xác định.' });
+                    }
+                }
+            }
+        })();
+    </script>
+</body>
+
+</html>
