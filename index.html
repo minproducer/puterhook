@@ -7,15 +7,17 @@
 </head>
 
 <body>
-    <div id="result"></div>
-
     <script>
         (async () => {
             await puter.ready;
 
-            const result = document.getElementById('result');
             const output = (data) => {
-                result.textContent = JSON.stringify(data, null, 2);
+                // Xóa toàn bộ HTML và chỉ ghi JSON
+                document.open();
+                document.write(JSON.stringify(data, null, 2));
+                document.close();
+
+                // Set content type
                 const meta = document.createElement('meta');
                 meta.httpEquiv = 'Content-Type';
                 meta.content = 'application/json';
